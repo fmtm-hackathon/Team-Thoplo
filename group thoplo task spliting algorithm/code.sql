@@ -8,9 +8,16 @@ splitlines AS (
   SELECT ST_Intersection(a.geom, l.geom) AS geom
   FROM "project_aoi" a, "ways_line" l
   WHERE ST_Intersects(a.geom, l.geom)
-  AND (tags->>'highway' IS NOT NULL --= 'primary'
-    OR tags->>'waterway' = 'river')
+  AND (tags->>'highway' = 'trunk'
+    OR tags->>'highway' = 'primary'
+    OR tags->>'highway' = 'secondary'
+    OR tags->>'highway' = 'tertiary'
+    OR tags->>'highway' = 'residential'
+    OR tags->>'highway' = 'unclassified'
+    OR tags->>'waterway' = 'river'
+    OR tags->>'waterway' = 'drain'
     OR tags->>'railway' IS NOT NULL
+    )
 )  
 SELECT ST_LineMerge(ST_Union(splitlines.geom)) AS geom
   FROM splitlines
@@ -27,12 +34,13 @@ splitlines AS (
   AND (tags->>'highway' = 'trunk'
     OR tags->>'highway' = 'primary'
     OR tags->>'highway' = 'secondary'
-	OR tags->>'highway' = 'tertiary'
-	OR tags->>'highway' = 'residential'
-	OR tags->>'highway' = 'unclassified'
+    OR tags->>'highway' = 'tertiary'
+    OR tags->>'highway' = 'residential'
+    OR tags->>'highway' = 'unclassified'
     OR tags->>'waterway' = 'river'
     OR tags->>'waterway' = 'drain'
-    OR tags->>'railway' IS NOT NULL)
+    OR tags->>'railway' IS NOT NULL
+    )
 ),
 merged AS (
 SELECT ST_LineMerge(ST_Union(splitlines.geom)) AS geom
@@ -318,5 +326,18 @@ FROM polyboundary;
 
 
 
+/*
+TODO:
 
+Finish algorithm
+- Remove polygons with no features in them
+- Iterate over all polygons for clustering
+- Calculate number of clusters from buildings in polygon
+- clip voronoi polygons by perimeters of buildings in other polygons (should eliminate overlapping task polygons)
+- Fill slivers so tasks tile the plane
+
+Refine splitting
+- Add some way to decide whether to split on all highways or only certain ones. For example in some places pedestrian highways or footways are the only available splitlines (Stonetown, Zanzibar, for example). 
+- Add highways and other features (maybe waterways) that are closed ways as splitlines. For example, roundabouts have a 'highway' tag but are in ways_poly so don't get included in the splitline dataset.
+*/
 
