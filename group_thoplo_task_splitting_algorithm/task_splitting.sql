@@ -1,3 +1,24 @@
+/*
+Licence: GPLv3 <https://www.gnu.org/licenses/gpl-3.0.html>
+
+This script divides an area into smaller areas suitable for field mapping as part of the HOT Field Mapping Tasking Manager.
+
+It takes four inputs, all of which are tables in a Postgresql database with 
+the PostGIS extension enabled. The first three are PostGIS layers in
+an EPSG:4326 projection.
+
+1) "project_aoi", a polygon layer with a single-feature Area of Interest 
+2) "ways_line", a line layer, usually from OpenStreetMap, covering the AOI
+3) "ways_poly", a polygon layer, usually from OSM, covering the AOI
+4) "project_config", a table with parameters for the splitting
+   - A desired number of features per task polygon
+   - A set of tags indicating what features should be included in the line 
+     polygon layers
+   - Maybe other stuff. I don't know yet; I haven't implemented this table yet.
+
+TODO: implement the config table
+*/
+
 -- The Area of Interest provided by the person creating the project
 WITH aoi AS (
   SELECT * FROM "project_aoi"
