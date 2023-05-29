@@ -83,7 +83,7 @@ from splitpolysnoindex
   WHERE ST_Intersects(polys.geom, b.geom)
   AND b.tags->>'building' IS NOT NULL
 )
--- Count the features in each polygon split by line features.
+-- Count the features in each task polygon.
 ,polygonsfeaturecount AS (
   SELECT sp.polyid, sp.geom, count(b.geom) AS numfeatures
   FROM "splitpolygons" sp
@@ -92,14 +92,14 @@ from splitpolysnoindex
   GROUP BY sp.polyid, sp.geom
 )
 -- Filter out polygons with no features in them
-,splitpolygonswithcontents AS (
+,taskpolygons AS (
   SELECT *
   FROM polygonsfeaturecount pfc
   WHERE pfc.numfeatures > 0
 )
 /* ***********************************
 -- Uncomment this and stop here for split polygons before clustering
-SELECT * FROM splitpolygonswithcontents
+SELECT * FROM taskpolygons
 *************************************/
 
 -- Add the count of features in the splitpolygon each building belongs to
@@ -126,41 +126,32 @@ SELECT * FROM splitpolygonswithcontents
 )
 ,clusteredbuildings AS (
 SELECT *,
-  ST_ClusterKMeans(geom, cast((b.numfeatures / 10) + 1 as integer))
+  ST_ClusterKMeans(geom, cast((b.numfeatures / 10) + 1 as integer)) 
   over (partition by polyid) as cid
 FROM buildingstocluster b
 )
-,clusteredbuildingsuid as (
-  select *, 
-  polyid::text || '-' || cid as clusteruid
-  from clusteredbuildings
-)
 /* ***********************************
--- Uncomment this and stop here for clustered buildings with unique ids
-SELECT * FROM clusteredbuildingsuid
+-- Uncomment this and stop here for clustered buildings
+SELECT * FROM cluteredbuildings
 *************************************/
-,dumpedpoints AS (
-  select cb.osm_id, cb.polyid, cb.cid, cb.clusteruid,
-  (st_dumppoints(geom)).geom
-  from clusteredbuildingsuid cb
+,hulls AS(
+  -- Using a very high param_pctconvex value; smaller values often produce
+  -- self-intersections and crash. It seems that anything below 1 produces
+  -- something massively better than 1 (which is just a convex hull) but
+  -- no different (i.e. 0.99 produces the same thing as 0.9999), so
+  -- there's nothing to lose choosing a value a miniscule fraction less than 1.
+  select ST_ConcaveHull(ST_Collect(clb.geom), 0.9999) as geom
+  from clusteredbuildings clb
+  group by clb.cid, clb.polyid
 )
-,dumpedpointsuid as (
-select dp.clusteruid, dp.geom
-from dumpedpoints dp
-group by dp. geom, dp.clusteruid
-)
-,voronesque (v) as (
-  select 
-    st_dump(
-      ST_VoronoiPolygons(
-        st_collect(dp.geom), 0.0
-      )
-    )
-  from dumpedpointsuid dp
-)
-,voronois as (
-  select (v).geom
-  from voronesque v
-)
-select st_intersection(v.geom, a.geom) as geom
-from voronois v, aoi a
+-- Now we need to:
+--   - Create intersections for the hulls so all overlapping bits are separated
+--   - Check what's inside of the overlapping bits
+--     - If it's only stuff belonging to one of the original hulls, give that
+--       bit to the hull it belongs to
+--     - If the overlapping are contains stuff belonging to more than one hull,
+--       somehow split the overlapping bit such that each piece only contains
+--       stuff from one or another parent hull. Then merge them back.
+--  - Do something Voronoi-esque to expand the hulls until they tile the
+--    entire AOI, creating task polygons with no gaps
+select * from hulls
