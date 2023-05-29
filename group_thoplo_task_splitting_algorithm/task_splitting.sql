@@ -140,27 +140,42 @@ FROM buildingstocluster b
 SELECT * FROM clusteredbuildingsuid
 *************************************/
 ,dumpedpoints AS (
-  select cb.osm_id, cb.polyid, cb.cid, cb.clusteruid,
+  SELECT cb.osm_id, cb.polyid, cb.cid, cb.clusteruid,
   (st_dumppoints(geom)).geom
-  from clusteredbuildingsuid cb
+  FROM clusteredbuildingsuid cb
 )
 ,dumpedpointsuid as (
-select dp.clusteruid, dp.geom
-from dumpedpoints dp
-group by dp. geom, dp.clusteruid
+SELECT dp.clusteruid, dp.geom
+FROM dumpedpoints dp
+GROUP by dp. geom, dp.clusteruid
 )
-,voronesque (v) as (
-  select 
+,voronesque (v) AS (
+  SELECT 
     st_dump(
       ST_VoronoiPolygons(
         st_collect(dp.geom), 0.0
       )
     )
-  from dumpedpointsuid dp
+  FROM dumpedpointsuid dp
+)
+,unclippedvoronois AS (
+  SELECT (v).geom
+  FROM voronesque v
 )
 ,voronois as (
-  select (v).geom
-  from voronesque v
+  SELECT st_intersection(v.geom, a.geom) AS geom
+  FROM unclippedvoronois v, aoi a
 )
-select st_intersection(v.geom, a.geom) as geom
-from voronois v, aoi a
+
+-- Magic function that Steve is writing
+/*,hulls AS(
+  select Ivan_Hull(ST_Collect(clb.geom), clb.clusteruid, pwc.geom) as geom
+  from clusteredbuildingsuid clb
+  LEFT JOIN splitpolygonswithcontents pwc ON clb.polyid = pwc.polyid
+)
+
+select * from hulls
+*/
+
+-- select the voronois just so the script gets pushed to Git in working state
+select * from voronois
