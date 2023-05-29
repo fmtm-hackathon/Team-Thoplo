@@ -83,7 +83,7 @@ from splitpolysnoindex
   WHERE ST_Intersects(polys.geom, b.geom)
   AND b.tags->>'building' IS NOT NULL
 )
--- Count the features in each task polygon.
+-- Count the features in each polygon split by line features.
 ,polygonsfeaturecount AS (
   SELECT sp.polyid, sp.geom, count(b.geom) AS numfeatures
   FROM "splitpolygons" sp
@@ -99,7 +99,7 @@ from splitpolysnoindex
 )
 /* ***********************************
 -- Uncomment this and stop here for split polygons before clustering
-SELECT * FROM taskpolygons
+SELECT * FROM splitpolygonswithcontents
 *************************************/
 
 -- Add the count of features in the splitpolygon each building belongs to
